@@ -90,7 +90,75 @@ def normalize_and_merge_products(pos, ecom, inventory):
     return result
 
 
+def normalize_and_merge_products_verbose(pos, ecom, inventory):
+    """Same as normalize_and_merge_products but prints each step in real time."""
+    merged: dict[str, dict] = {}
+
+    sep = "-" * 60
+
+    print(sep)
+    print("STEP 1 — Ingesting POS data")
+    print(sep)
+    for item in pos:
+        raw = item["product_code"]
+        nid = normalize_id(raw)
+        print(f"  POS  {raw!r:12s} -> normalized id: {nid!r}")
+        merged.setdefault(nid, {"id": nid})
+        merged[nid].update(
+            {"product_code": item["product_code"], "name": item["name"], "price": item["price"]}
+        )
+        print(f"         merged[{nid!r}] = {merged[nid]}")
+
+    print()
+    print(sep)
+    print("STEP 2 — Ingesting Ecommerce data")
+    print(sep)
+    for item in ecom:
+        raw = item["sku"]
+        nid = normalize_id(raw)
+        print(f"  ECOM {raw!r:12s} -> normalized id: {nid!r}")
+        merged.setdefault(nid, {"id": nid})
+        merged[nid].update({"online_price": item["online_price"], "stock": item["stock"]})
+        merged[nid].setdefault("name", item["product_name"])
+        print(f"         merged[{nid!r}] = {merged[nid]}")
+
+    print()
+    print(sep)
+    print("STEP 3 — Ingesting Inventory data")
+    print(sep)
+    for item in inventory:
+        raw = item["item_id"]
+        nid = normalize_id(raw)
+        print(f"  INV  {raw!r:12s} -> normalized id: {nid!r}")
+        merged.setdefault(nid, {"id": nid})
+        merged[nid].update({"warehouse_qty": item["warehouse_qty"]})
+        merged[nid].setdefault("name", item["description"].title())
+        print(f"         merged[{nid!r}] = {merged[nid]}")
+
+    print()
+    print(sep)
+    print("STEP 4 — Filling missing fields with None & sorting")
+    print(sep)
+    all_keys = ["id", "product_code", "name", "price", "online_price", "stock", "warehouse_qty"]
+    result = []
+    for nid, record in sorted(merged.items()):
+        for key in all_keys:
+            record.setdefault(key, None)
+        result.append(record)
+
+    print()
+    print(sep)
+    print("FINAL MERGED PRODUCTS")
+    print(sep)
+    for p in result:
+        print(f"\n  id={p['id']}")
+        for k, v in p.items():
+            if k != "id":
+                status = "  " if v is not None else "  [missing]"
+                print(f"    {k:<15s}: {v!r}{status}")
+
+    return result
+
+
 if __name__ == "__main__":
-    products = normalize_and_merge_products(pos_data, ecom_data, inventory_data)
-    for p in products:
-        print(p)
+    normalize_and_merge_products_verbose(pos_data, ecom_data, inventory_data)
